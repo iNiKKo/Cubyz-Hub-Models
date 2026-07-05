@@ -38,10 +38,18 @@ try {
 } catch (err) {
     if (!err.message.includes("duplicate column name")) {
         console.error("Database migration error:", err);
+        db.exec(`
+        CREATE TABLE IF NOT EXISTS asset_votes (
+            asset_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            PRIMARY KEY (asset_id, user_id),
+            FOREIGN KEY(asset_id) REFERENCES assets(id),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        );
+        `);
     }
 }
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -131,20 +139,47 @@ app.get('/api/assets', (req, res) => {
 });
 
 app.post('/api/assets/:id/vote', (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    try {
-        const stmt = db.prepare('UPDATE assets SET votes = votes + 1 WHERE id = ?');
-        const result = stmt.run(req.params.id);
-
-        if (result.changes === 0) {
-            return res.status(404).json({ error: 'Asset not found' });
-        }
-
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    if (!req.session.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
+
+    const assetId = Number(req.params.id);
+    const userId = req.session.userId;
+
+    const asset = db.prepare(
+        'SELECT id FROM assets WHERE id = ?'
+    ).get(assetId);
+
+    if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    const alreadyVoted = db.prepare(`
+    SELECT 1
+    FROM asset_votes
+    WHERE asset_id = ? AND user_id = ?
+    `).get(assetId, userId);
+
+    if (alreadyVoted) {
+        return res.status(400).json({ error: 'You have already voted for this asset.' });
+    }
+
+    const transaction = db.transaction(() => {
+        db.prepare(`
+        INSERT INTO asset_votes (asset_id, user_id)
+        VALUES (?, ?)
+        `).run(assetId, userId);
+
+        db.prepare(`
+        UPDATE assets
+        SET votes = votes + 1
+        WHERE id = ?
+        `).run(assetId);
+    });
+
+    transaction();
+
+    res.json({ success: true });
 });
 
 app.post('/api/upload', upload.fields([{ name: 'glb' }, { name: 'texture' }]), (req, res) => {

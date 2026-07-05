@@ -241,15 +241,21 @@ function renderGrid() {
 }
 
 async function voteAsset(id) {
-    if (!loggedIn) return alert("Please Login or Register to upvote designs!");
-
-    const res = await fetch(`/api/assets/${id}/vote`, { method: 'POST' });
-    const data = await res.json();
-    if (data.error) {
-        alert(data.error);
-    } else {
-        loadAssets();
+    if (!loggedIn) {
+        return alert("Please Login or Register to upvote designs!");
     }
+
+    const res = await fetch(`/api/assets/${id}/vote`, {
+        method: "POST"
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        return alert(data.error);
+    }
+
+    loadAssets();
 }
 
 function initThreeViewer(containerId, glbPath, texturePath, shouldRotateX, rotationOffsetY = 0) {

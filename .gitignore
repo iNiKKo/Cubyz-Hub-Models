@@ -1,0 +1,15 @@
+# Node dependencies
+node_modules/
+
+# Database
+repo.db
+
+# User uploads
+uploads/
+
+# Environment variables
+.env
+
+# System files
+.DS_Store
+Thumbs.db

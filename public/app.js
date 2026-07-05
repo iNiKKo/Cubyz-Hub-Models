@@ -23,14 +23,20 @@ let undoStack = [];
 const MAX_UNDO_STEPS = 25;
 let scaleMultiplier = 8;
 
+let isFetching = false;
+
 async function loadAssets() {
+    if (isFetching) return;
+    isFetching = true;
+
     try {
         const authRes = await fetch('/api/me');
         const authData = await authRes.json();
 
         if (authData.loggedIn) {
             loggedIn = true;
-            document.getElementById('authBox').innerHTML = `
+            const authBox = document.getElementById('authBox');
+            authBox.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px;">
             <span>Welcome, <b>${authData.username}</b></span>
             <button onclick="toggleModal(true)" style="font-size: 0.8rem; padding: 6px 12px; background: var(--accent); color: #1a1f1c; font-weight: bold; cursor: pointer; border: 1px solid var(--border);">Upload Asset</button>
@@ -46,9 +52,15 @@ async function loadAssets() {
     const sortDropdown = document.getElementById('sortSelector');
     const activeSort = sortDropdown ? sortDropdown.value : 'newest';
 
-    const res = await fetch(`/api/assets?sort=${activeSort}`);
-    allAssets = await res.json();
-    renderGrid();
+    try {
+        const res = await fetch(`/api/assets?sort=${activeSort}`);
+        allAssets = await res.json();
+        renderGrid();
+    } catch (e) {
+        console.error("Failed to load assets:", e);
+    } finally {
+        isFetching = false;
+    }
 }
 
 function setTool(tool) {
@@ -559,4 +571,7 @@ function toggleRemixModal(show) {
     if(!show && updateTimer) clearTimeout(updateTimer);
 }
 
-window.onload = loadAssets;
+window.onload = () => {
+    loadAssets();
+    document.getElementById('sortSelector').addEventListener('change', loadAssets);
+};
